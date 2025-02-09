@@ -19,8 +19,9 @@
   "author": "Aleksei Sapozhnikov",
   "license": "MIT",
   "dependencies": {
+    "@octokit/rest": "18.0.0",
     "commander": "10.0.0",
-    "@octokit/rest": "18.0.0"
+    "parse-duration": "2.1.2"
   },
   "engines": {
     "node": ">=18"

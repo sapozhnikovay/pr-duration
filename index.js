@@ -11,11 +11,12 @@
  *
  * Usage:
  *   node index.js --org my-org --period 1w --token YOUR_GITHUB_TOKEN
- *   node index.js --org my-org --repo my-repo --period 3m --user otherUser --token YOUR_GITHUB_TOKEN
+ *   node index.js --org my-org --repo my-repo --period 3mo --user otherUser --token YOUR_GITHUB_TOKEN
  */
 
 import { Octokit } from '@octokit/rest';
 import { program } from 'commander';
+import parseDuration from 'parse-duration';
 
 // Define command-line options
 program
@@ -23,7 +24,7 @@ program
   .option('-r, --repo <repo>', 'Filter by specific repository (optional)')
   .requiredOption(
     '-p, --period <period>',
-    "Time period (e.g., '2d' for 2 days, '1w' for 1 week, '3m' for 3 months, '1y' for 1 year)"
+    "Time period (e.g., '2d' for 2 days, '1w' for 1 week, '3mo' for 3 months, '1y' for 1 year)"
   )
   .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
   .requiredOption('-t, --token <token>', 'GitHub personal access token')
@@ -47,34 +48,15 @@ async function getAuthenticatedUser() {
 }
 
 /**
- * Parse a period string like "2d", "1w", "3m", or "1y" and return the Date
+ * Parse a period string like "2d", "1w", "3mo", or "1y" and return the Date
  * corresponding to now minus that duration.
  */
 function parsePeriod(periodStr) {
-  const match = periodStr.match(/^(\d+)([dwmy])$/);
-  if (!match) {
-    throw new Error('Invalid period format. Use e.g. "2d", "1w", "3m", or "1y".');
+  const durationMs = parseDuration(periodStr);
+  if (!durationMs) {
+    throw new Error('Invalid period format. Use e.g. "2d", "1w", "3mo", or "1y".');
   }
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  const startDate = new Date();
-  switch (unit) {
-    case 'd':
-      startDate.setDate(startDate.getDate() - value);
-      break;
-    case 'w':
-      startDate.setDate(startDate.getDate() - value * 7);
-      break;
-    case 'm':
-      startDate.setMonth(startDate.getMonth() - value);
-      break;
-    case 'y':
-      startDate.setFullYear(startDate.getFullYear() - value);
-      break;
-    default:
-      throw new Error('Invalid time unit.');
-  }
-  return startDate;
+  return new Date(Date.now() - durationMs);
 }
 
 /**
