@@ -1,0 +1,28 @@
+{
+  "name": "pr-stats-app",
+  "version": "1.0.0",
+  "description": "A Node.js console application to compute average pull request merge durations for GitHub repositories.",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "pr-stats": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "github",
+    "pull-request",
+    "stats",
+    "cli"
+  ],
+  "author": "Aleksei Sapozhnikov",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "10.0.0",
+    "@octokit/rest": "18.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
