@@ -12,6 +12,7 @@
  * Usage:
  *   node index.js --org my-org --period 1w --token YOUR_GITHUB_TOKEN
  *   node index.js --org my-org --repo my-repo --period 3mo --user otherUser --token YOUR_GITHUB_TOKEN
+ *   node index.js --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB_TOKEN
  */
 
 import { Octokit } from '@octokit/rest';
@@ -22,10 +23,12 @@ import parseDuration from 'parse-duration';
 program
   .requiredOption('-o, --org <org>', 'GitHub organization name')
   .option('-r, --repo <repo>', 'Filter by specific repository (optional)')
-  .requiredOption(
+  .option(
     '-p, --period <period>',
     "Time period (e.g., '2d' for 2 days, '1w' for 1 week, '3mo' for 3 months, '1y' for 1 year)"
   )
+  .option('--start <date>', 'Start date (YYYY-MM-DD)')
+  .option('--end <date>', 'End date (YYYY-MM-DD)')
   .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
   .requiredOption('-t, --token <token>', 'GitHub personal access token')
   .option('--export <format>', 'Export data in the specified format (json)')
@@ -35,7 +38,13 @@ const options = program.opts();
 const org = options.org;
 const repo = options.repo;
 const periodStr = options.period;
+const startDateStr = options.start;
+const endDateStr = options.end;
 const token = options.token;
+
+if (periodStr && (startDateStr || endDateStr)) {
+  throw new Error('The --period option cannot be used with --start or --end options.');
+}
 
 const octokit = new Octokit({ auth: token });
 
@@ -60,13 +69,28 @@ function parsePeriod(periodStr) {
 }
 
 /**
+ * Parse a date string in the format YYYY-MM-DD and return a Date object.
+ */
+function parseDate(dateStr) {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date format: ${dateStr}. Use YYYY-MM-DD.`);
+  }
+  return date;
+}
+
+/**
  * Use GitHub’s search API to get pull requests authored by the specified user
  * in the given organization (and repository, if provided) that were merged
  * since the given date.
  */
-async function fetchPullRequests(username, org, repo, since) {
+async function fetchPullRequests(username, org, repo, since, until) {
   const sinceStr = since.toISOString().split('T')[0];
+  const untilStr = until ? until.toISOString().split('T')[0] : '';
   let query = `type:pr author:${username} is:merged merged:>=${sinceStr}`;
+  if (untilStr) {
+    query = `type:pr author:${username} is:merged merged:${sinceStr}..${untilStr}`;
+  }
 
   if (repo) {
     if (repo.includes('/')) {
@@ -130,14 +154,23 @@ async function main() {
   try {
     const searchUser = options.user || (await getAuthenticatedUser());
     if (options.export !== 'json') {
-      console.log(`Fetching PR stats for ${searchUser} in organization ${org}...`);
-    }
-    const sinceDate = parsePeriod(periodStr);
-    if (options.export !== 'json') {
-      console.log(`Considering merged PRs since ${sinceDate.toISOString()}`);
+      if (repo) {
+        console.log(
+          `Fetching PR stats for user ${searchUser} in repo ${repo.includes('/') ? repo : `${org}/${repo}`}...`
+        );
+      } else {
+        console.log(`Fetching PR stats for user ${searchUser} in organization ${org}...`);
+      }
     }
 
-    const prItems = await fetchPullRequests(searchUser, org, repo, sinceDate);
+    const sinceDate = startDateStr ? parseDate(startDateStr) : parsePeriod(periodStr);
+    const untilDate = endDateStr ? parseDate(endDateStr) : new Date();
+
+    if (options.export !== 'json') {
+      console.log(`Considering merged PRs from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`);
+    }
+
+    const prItems = await fetchPullRequests(searchUser, org, repo, sinceDate, untilDate);
     if (options.export !== 'json') {
       console.log(`Found ${prItems.length} pull request(s).`);
     }
