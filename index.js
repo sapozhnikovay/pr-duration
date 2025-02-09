@@ -27,6 +27,7 @@ program
   )
   .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
   .requiredOption('-t, --token <token>', 'GitHub personal access token')
+  .option('--export <format>', 'Export data in the specified format (json)')
   .parse(process.argv);
 
 const options = program.opts();
@@ -145,17 +146,24 @@ async function fetchReadyTime(owner, repo, prNumber, fallbackCreatedAt) {
  */
 async function main() {
   try {
-    // Use the provided --user filter; if not provided, default to the authenticated user.
     const searchUser = options.user || (await getAuthenticatedUser());
-    console.log(`Fetching PR stats for ${searchUser} in organization ${org}...`);
+    if (options.export !== 'json') {
+      console.log(`Fetching PR stats for ${searchUser} in organization ${org}...`);
+    }
     const sinceDate = parsePeriod(periodStr);
-    console.log(`Considering merged PRs since ${sinceDate.toISOString()}`);
+    if (options.export !== 'json') {
+      console.log(`Considering merged PRs since ${sinceDate.toISOString()}`);
+    }
 
     const prItems = await fetchPullRequests(searchUser, org, repo, sinceDate);
-    console.log(`Found ${prItems.length} pull request(s).`);
+    if (options.export !== 'json') {
+      console.log(`Found ${prItems.length} pull request(s).`);
+    }
 
     let totalDurationHours = 0;
     let count = 0;
+
+    const prDataList = [];
 
     // Process each PR. Note that the search API returns “issues” that represent PRs.
     // We need to fetch the actual PR details to get properties like merged_at.
@@ -185,11 +193,21 @@ async function main() {
       // Calculate the duration (in hours) between readyTime and mergeTime.
       const durationMs = mergeTime - readyTime;
       const durationHours = durationMs / (1000 * 60 * 60);
-      console.log(
-        `PR #${prNumber} (${ownerName}/${repoName}): Ready at ${readyTime.toISOString()}, Merged at ${mergeTime.toISOString()} → Duration: ${durationHours.toFixed(
-          2
-        )} hours`
-      );
+
+      prDataList.push({
+        url: prUrl,
+        readyDate: readyTime.toISOString(),
+        mergedDate: mergeTime.toISOString(),
+        durationHours: durationHours.toFixed(2),
+      });
+
+      if (options.export !== 'json') {
+        console.log(
+          `PR #${prNumber} (${ownerName}/${repoName}): Ready at ${readyTime.toISOString()}, Merged at ${mergeTime.toISOString()} → Duration: ${durationHours.toFixed(
+            2
+          )} hours`
+        );
+      }
 
       totalDurationHours += durationHours;
       count++;
@@ -197,9 +215,20 @@ async function main() {
 
     if (count > 0) {
       const avgDuration = totalDurationHours / count;
-      console.log(`\nAverage merge duration: ${avgDuration.toFixed(2)} hours over ${count} pull request(s).`);
+
+      if (options.export === 'json') {
+        const exportData = {
+          averageDurationHours: avgDuration.toFixed(2),
+          pullRequests: prDataList,
+        };
+        console.log(JSON.stringify(exportData, null, 2));
+      } else {
+        console.log(`\nAverage merge duration: ${avgDuration.toFixed(2)} hours over ${count} pull request(s).`);
+      }
     } else {
-      console.log('No pull requests found in the specified period.');
+      if (options.export !== 'json') {
+        console.log('No pull requests found in the specified period.');
+      }
     }
   } catch (error) {
     console.error('Error:', error.message);
