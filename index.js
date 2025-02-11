@@ -15,23 +15,27 @@
  *   node index.js --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB_TOKEN
  */
 
-import { Octokit } from '@octokit/rest';
 import { program } from 'commander';
-import parseDuration from 'parse-duration';
+import logger from './logger.js';
+import { exportData } from './exporter.js';
+import {
+  getAuthenticatedUser,
+  parsePeriod,
+  parseDate,
+  loadPullRequests,
+  calculateAverageDuration,
+} from './businessLogic.js';
 
 // Define command-line options
 program
   .requiredOption('-o, --org <org>', 'GitHub organization name')
   .option('-r, --repo <repo>', 'Filter by specific repository (optional)')
-  .option(
-    '-p, --period <period>',
-    "Time period (e.g., '2d' for 2 days, '1w' for 1 week, '3mo' for 3 months, '1y' for 1 year)"
-  )
+  .option('-p, --period <period>', "Time period (e.g., '2d', '1w', '3mo', '1y')")
   .option('--start <date>', 'Start date (YYYY-MM-DD)')
   .option('--end <date>', 'End date (YYYY-MM-DD)')
   .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
   .requiredOption('-t, --token <token>', 'GitHub personal access token')
-  .option('--export <format>', 'Export data in the specified format (json)')
+  .option('--export <format>', 'Export data in the specified format (json or csv)')
   .parse(process.argv);
 
 const options = program.opts();
@@ -43,107 +47,13 @@ const endDateStr = options.end;
 const token = options.token;
 
 if (periodStr && (startDateStr || endDateStr)) {
-  throw new Error('The --period option cannot be used with --start or --end options.');
+  logger.error('The --period option cannot be used with --start or --end options.');
+  process.exit(1);
 }
 
-const octokit = new Octokit({ auth: token });
-
-/**
- * Get the authenticated user’s login name.
- */
-async function getAuthenticatedUser() {
-  const { data } = await octokit.users.getAuthenticated();
-  return data.login;
-}
-
-/**
- * Parse a period string like "2d", "1w", "3mo", or "1y" and return the Date
- * corresponding to now minus that duration.
- */
-function parsePeriod(periodStr) {
-  const durationMs = parseDuration(periodStr);
-  if (!durationMs) {
-    throw new Error('Invalid period format. Use e.g. "2d", "1w", "3mo", or "1y".');
-  }
-  return new Date(Date.now() - durationMs);
-}
-
-/**
- * Parse a date string in the format YYYY-MM-DD and return a Date object.
- */
-function parseDate(dateStr) {
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) {
-    throw new Error(`Invalid date format: ${dateStr}. Use YYYY-MM-DD.`);
-  }
-  return date;
-}
-
-/**
- * Use GitHub’s search API to get pull requests authored by the specified user
- * in the given organization (and repository, if provided) that were merged
- * since the given date.
- */
-async function fetchPullRequests(username, org, repo, since, until) {
-  const sinceStr = since.toISOString().split('T')[0];
-  const untilStr = until ? until.toISOString().split('T')[0] : '';
-  let query = `type:pr author:${username} is:merged merged:>=${sinceStr}`;
-  if (untilStr) {
-    query = `type:pr author:${username} is:merged merged:${sinceStr}..${untilStr}`;
-  }
-
-  if (repo) {
-    if (repo.includes('/')) {
-      query += ` repo:${repo}`;
-    } else {
-      query += ` repo:${org}/${repo}`;
-    }
-  } else {
-    query += ` org:${org}`;
-  }
-
-  const prs = [];
-  let page = 1;
-  const perPage = 100;
-
-  while (true) {
-    const { data } = await octokit.search.issuesAndPullRequests({
-      q: query,
-      per_page: perPage,
-      page,
-    });
-
-    if (!data.items || data.items.length === 0) break;
-    prs.push(...data.items);
-    if (data.items.length < perPage) break;
-    page++;
-  }
-  return prs;
-}
-
-/**
- * For a given pull request, fetch its timeline events (which include events
- * like "ready_for_review"). We need the first time the PR became “ready.”
- *
- * Note: GitHub’s timeline API is currently in preview, so we must include the
- * special Accept header.
- */
-async function fetchReadyTime(owner, repo, prNumber, fallbackCreatedAt) {
-  const { data: events } = await octokit.issues.listEventsForTimeline({
-    owner,
-    repo,
-    issue_number: prNumber,
-    per_page: 100,
-    headers: {
-      accept: 'application/vnd.github.mockingbird-preview+json',
-    },
-  });
-
-  const readyEvent = events.find((e) => e.event === 'ready_for_review');
-  if (readyEvent) {
-    return new Date(readyEvent.created_at);
-  }
-  return new Date(fallbackCreatedAt);
+if (options.export && !['json', 'csv'].includes(options.export)) {
+  logger.error('Unsupported export format. Use "json" or "csv".');
+  process.exit(1);
 }
 
 /**
@@ -152,101 +62,42 @@ async function fetchReadyTime(owner, repo, prNumber, fallbackCreatedAt) {
  */
 async function main() {
   try {
-    const searchUser = options.user || (await getAuthenticatedUser());
-    if (options.export !== 'json') {
-      if (repo) {
-        console.log(
-          `Fetching PR stats for user ${searchUser} in repo ${repo.includes('/') ? repo : `${org}/${repo}`}...`
-        );
-      } else {
-        console.log(`Fetching PR stats for user ${searchUser} in organization ${org}...`);
-      }
-    }
+    const searchUser = options.user || (await getAuthenticatedUser(token));
 
     const sinceDate = startDateStr ? parseDate(startDateStr) : parsePeriod(periodStr);
     const untilDate = endDateStr ? parseDate(endDateStr) : new Date();
 
-    if (options.export !== 'json') {
-      console.log(`Considering merged PRs from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`);
+    const logProgress = !options.export;
+
+    if (logProgress) {
+      logger.info(`Considering merged PRs from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`);
     }
 
-    const prItems = await fetchPullRequests(searchUser, org, repo, sinceDate, untilDate);
-    if (options.export !== 'json') {
-      console.log(`Found ${prItems.length} pull request(s).`);
-    }
-
-    let totalDurationHours = 0;
-    let count = 0;
-
-    const prDataList = [];
-
-    // Process each PR. Note that the search API returns “issues” that represent PRs.
-    // We need to fetch the actual PR details to get properties like merged_at.
-    for (const prItem of prItems) {
-      const prUrl = prItem.pull_request.url;
-      const { data: prData } = await octokit.request(`GET ${prUrl}`, {
-        headers: {
-          Authorization: `token ${token}`,
-          'User-Agent': 'PR-Stats-App',
-        },
-      });
-
-      // Skip if for some reason the PR isn’t merged.
-      if (!prData.merged_at) continue;
-      const mergeTime = new Date(prData.merged_at);
-
-      // Determine the “ready” timestamp.
-      // If the PR was created as a draft and later published, the timeline should include a “ready_for_review” event.
-      // Otherwise, use the created_at timestamp.
-      const ownerName = prData.base.repo.owner.login;
-      const repoName = prData.base.repo.name;
-      const prNumber = prData.number;
-      const createdAt = prData.created_at;
-
-      const readyTime = await fetchReadyTime(ownerName, repoName, prNumber, createdAt);
-
-      // Calculate the duration (in hours) between readyTime and mergeTime.
-      const durationMs = mergeTime - readyTime;
-      const durationHours = durationMs / (1000 * 60 * 60);
-
-      prDataList.push({
-        url: prUrl,
-        readyDate: readyTime.toISOString(),
-        mergedDate: mergeTime.toISOString(),
-        durationHours: durationHours.toFixed(2),
-      });
-
-      if (options.export !== 'json') {
-        console.log(
-          `PR #${prNumber} (${ownerName}/${repoName}): Ready at ${readyTime.toISOString()}, Merged at ${mergeTime.toISOString()} → Duration: ${durationHours.toFixed(
-            2
-          )} hours`
-        );
-      }
-
-      totalDurationHours += durationHours;
-      count++;
-    }
+    const prItems = await loadPullRequests(searchUser, org, repo, sinceDate, untilDate, token, logProgress);
+    const { totalDurationHours, count, prDataList } = await calculateAverageDuration(prItems, token, logProgress);
 
     if (count > 0) {
       const avgDuration = totalDurationHours / count;
 
-      if (options.export === 'json') {
-        const exportData = {
-          averageDurationHours: avgDuration.toFixed(2),
-          pullRequests: prDataList,
-        };
-        console.log(JSON.stringify(exportData, null, 2));
+      if (options.export) {
+        exportData(
+          {
+            averageDurationHours: avgDuration.toFixed(2),
+            pullRequests: prDataList,
+          },
+          options.export
+        );
       } else {
         console.log(`\nAverage merge duration: ${avgDuration.toFixed(2)} hours over ${count} pull request(s).`);
       }
     } else {
-      if (options.export !== 'json') {
-        console.log('No pull requests found in the specified period.');
+      if (logProgress) {
+        logger.info('No pull requests found in the specified period.');
       }
     }
   } catch (error) {
-    console.error('Error:', error.message);
+    logger.error(`Error: ${error.message}`);
+    process.exit(1);
   }
 }
 
