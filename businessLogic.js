@@ -36,6 +36,30 @@ export function parseDate(dateStr) {
 }
 
 /**
+ * Validate that the given username is searchable via the :author filter.
+ * It runs a dummy search query and checks for a 422 error containing the expected message.
+ */
+async function validateQueryableAuthor(username) {
+  try {
+    const query = `type:pr author:${username}`;
+    // Attempt a dummy search query with just one result per page.
+    await octokit.search.issuesAndPullRequests({
+      q: query,
+      per_page: 1,
+    });
+    // If no error is thrown, the user is searchable.
+    return true;
+  } catch (error) {
+    // Octokit throws an error with status 422 for unsearchable users.
+    if (error.status === 422 && error.message.includes('The listed users cannot be searched')) {
+      return false;
+    }
+    // For any other error, rethrow or handle accordingly.
+    throw new Error(`Error checking queryability of user "${username}": ${error.message}`);
+  }
+}
+
+/**
  * Use GitHub’s search API to get pull requests authored by the specified user
  * in the given organization (and repository, if provided) that were merged
  * since the given date.
@@ -46,6 +70,12 @@ export async function fetchPullRequests(username, org, repo, since, until, token
   let query = `type:pr is:merged merged:>=${sinceStr}`;
   if (untilStr) {
     query += ` merged:${sinceStr}..${untilStr}`;
+  }
+
+  const isPublic = await validateQueryableAuthor(username);
+
+  if (isPublic) {
+    query += ` author:${username}`;
   }
 
   if (repo) {
@@ -78,8 +108,8 @@ export async function fetchPullRequests(username, org, repo, since, until, token
     page++;
   }
 
-  // Filter PRs by author if username is provided
-  if (username) {
+  // Filter PRs by author if username is provided and profile is private
+  if (username && !isPublic) {
     return prs.filter((pr) => pr.user.login.toLowerCase() === username.toLowerCase());
   }
 
