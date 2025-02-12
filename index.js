@@ -46,8 +46,18 @@ const startDateStr = options.start;
 const endDateStr = options.end;
 const token = options.token;
 
+if (!periodStr && !startDateStr && !endDateStr) {
+  logger.error('Either --period or --start option or --start and --end options are required.');
+  process.exit(1);
+}
+
 if (periodStr && (startDateStr || endDateStr)) {
   logger.error('The --period option cannot be used with --start or --end options.');
+  process.exit(1);
+}
+
+if (endDateStr && !startDateStr) {
+  logger.error('The --end option cannot be used without the --start option.');
   process.exit(1);
 }
 
