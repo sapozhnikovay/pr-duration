@@ -5,7 +5,7 @@ import logger from './logger.js';
 const octokit = new Octokit();
 
 /**
- * Get the authenticated user’s login name.
+ * Get the authenticated user's login name.
  */
 export async function getAuthenticatedUser(token) {
   const { data } = await octokit.users.getAuthenticated({
@@ -65,11 +65,11 @@ async function validateQueryableAuthor(username) {
 }
 
 /**
- * Use GitHub’s search API to get pull requests authored by the specified user
+ * Use GitHub's search API to get pull requests authored by the specified users
  * in the given organization (and repository, if provided) that were merged
  * since the given date.
  */
-export async function fetchPullRequests(username, org, repo, since, until, token) {
+export async function fetchPullRequests(usernames, org, repo, since, until, token) {
   const sinceStr = since.toISOString().split('T')[0];
   const untilStr = until ? until.toISOString().split('T')[0] : '';
   let query = `type:pr is:merged merged:>=${sinceStr}`;
@@ -77,12 +77,7 @@ export async function fetchPullRequests(username, org, repo, since, until, token
     query += ` merged:${sinceStr}..${untilStr}`;
   }
 
-  const isPublic = await validateQueryableAuthor(username);
-
-  if (isPublic) {
-    query += ` author:${username}`;
-  }
-
+  // Add organization/repo filter
   if (repo) {
     if (repo.includes('/')) {
       query += ` repo:${repo}`;
@@ -91,6 +86,19 @@ export async function fetchPullRequests(username, org, repo, since, until, token
     }
   } else {
     query += ` org:${org}`;
+  }
+
+  const allPublic = await Promise.all(usernames.map(validateQueryableAuthor));
+
+  // Use :author filter only if all usernames are public
+  if (allPublic.every((isPublic) => isPublic)) {
+    const userQueries = usernames.map((username) => `author:${username}`).join(' OR ');
+    // Add parentheses only if there are multiple users
+    if (usernames.length > 1) {
+      query += ` (${userQueries})`;
+    } else {
+      query += ` ${userQueries}`;
+    }
   }
 
   const prs = [];
@@ -113,9 +121,9 @@ export async function fetchPullRequests(username, org, repo, since, until, token
     page++;
   }
 
-  // Filter PRs by author if username is provided and profile is private
-  if (username && !isPublic) {
-    return prs.filter((pr) => pr.user.login.toLowerCase() === username.toLowerCase());
+  // If not all usernames are public, filter PRs by author manually
+  if (!allPublic.every((isPublic) => isPublic)) {
+    return prs.filter((pr) => usernames.map((u) => u.toLowerCase()).includes(pr.user.login.toLowerCase()));
   }
 
   return prs;
@@ -123,9 +131,9 @@ export async function fetchPullRequests(username, org, repo, since, until, token
 
 /**
  * For a given pull request, fetch its timeline events (which include events
- * like "ready_for_review"). We need the first time the PR became “ready.”
+ * like "ready_for_review"). We need the first time the PR became "ready."
  *
- * Note: GitHub’s timeline API is currently in preview, so we must include the
+ * Note: GitHub's timeline API is currently in preview, so we must include the
  * special Accept header.
  */
 export async function fetchReadyTime(owner, repo, prNumber, fallbackCreatedAt, token) {
@@ -150,18 +158,18 @@ export async function fetchReadyTime(owner, repo, prNumber, fallbackCreatedAt, t
 /**
  * Load the list of pull requests.
  */
-export async function loadPullRequests(searchUser, org, repo, sinceDate, untilDate, token, logProgress) {
+export async function loadPullRequests(users, org, repo, sinceDate, untilDate, token, logProgress) {
   if (logProgress) {
     if (repo) {
       logger.info(
-        `Fetching PR stats for user ${searchUser} in repo ${repo.includes('/') ? repo : `${org}/${repo}`}...`
+        `Fetching PR stats for users ${users.join(', ')} in repo ${repo.includes('/') ? repo : `${org}/${repo}`}...`
       );
     } else {
-      logger.info(`Fetching PR stats for user ${searchUser} in organization ${org}...`);
+      logger.info(`Fetching PR stats for users ${users.join(', ')} in organization ${org}...`);
     }
   }
 
-  const prItems = await fetchPullRequests(searchUser, org, repo, sinceDate, untilDate, token);
+  const prItems = await fetchPullRequests(users, org, repo, sinceDate, untilDate, token);
   if (logProgress) {
     logger.info(`Found ${prItems.length} pull request(s).`);
   }
