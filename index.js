@@ -33,7 +33,7 @@ program
   .option('-p, --period <period>', "Time period (e.g., '2d', '1w', '3mo', '1y')")
   .option('--start <date>', 'Start date (YYYY-MM-DD)')
   .option('--end <date>', 'End date (YYYY-MM-DD)')
-  .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
+  .option('-u, --user <usernames>', 'Filter PRs by GitHub usernames (comma-separated list)')
   .option('-t, --token <token>', 'GitHub personal access token (can also be set via GITHUB_TOKEN env variable)')
   .option('--export <format>', 'Export data in the specified format (json or csv)')
   .parse(process.argv);
@@ -74,12 +74,12 @@ if (options.export && !['json', 'csv'].includes(options.export)) {
 }
 
 /**
- * Main function: Get the specified user's PRs, compute each duration
+ * Main function: Get the specified users' PRs, compute each duration
  * (in hours) from "ready" until merged, and output the average duration.
  */
 async function main() {
   try {
-    const searchUser = options.user || (await getAuthenticatedUser(token));
+    const searchUsers = options.user ? options.user.split(',').map((u) => u.trim()) : [];
 
     const sinceDate = startDateStr ? parseDate(startDateStr) : parsePeriod(periodStr);
     const untilDate = endDateStr ? parseDate(endDateStr) : new Date();
@@ -87,10 +87,18 @@ async function main() {
     const logProgress = !options.export;
 
     if (logProgress) {
-      logger.info(`Considering merged PRs from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`);
+      if (searchUsers.length > 0) {
+        logger.info(
+          `Analyzing PRs by users: ${searchUsers.join(
+            ', '
+          )} from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`
+        );
+      } else {
+        logger.info(`Analyzing all PRs from ${sinceDate.toISOString()} to ${untilDate.toISOString()}`);
+      }
     }
 
-    const prItems = await loadPullRequests(searchUser, org, repo, sinceDate, untilDate, token, logProgress);
+    const prItems = await loadPullRequests(searchUsers, org, repo, sinceDate, untilDate, token, logProgress);
     const { totalDurationHours, count, prDataList } = await calculateAverageDuration(prItems, token, logProgress);
 
     if (count > 0) {

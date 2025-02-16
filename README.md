@@ -23,8 +23,8 @@ pr-duration --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB
 - `-p, --period <period>`: Time period (e.g., '2d' for 2 days, '1w' for 1 week, '3mo' for 3 months, '1y' for 1 year)
 - `--start <date>`: Start date (YYYY-MM-DD)
 - `--end <date>`: End date (YYYY-MM-DD)
-- `-u, --user <username>`: Filter PRs by GitHub username (defaults to the authenticated user)
-- `-t, --token <token>`: GitHub personal access token (required)
+- `-u, --user <usernames...>`: Filter PRs by GitHub usernames (comma-separated list, optional)
+- `-t, --token <token>`: GitHub personal access token (can also be set via GITHUB_TOKEN env variable)
 - `--export <format>`: Export data in the specified format (json or csv)
 
 ## Authentication
@@ -49,14 +49,14 @@ The command line option takes precedence over the environment variable if both a
 ## Examples
 
 ```bash
-# Get PR stats for the last week
+# Get PR stats for all PRs in the last week
 pr-duration --org my-org --period 1w --token ghp_your_token_here
 
-# Export PR stats to CSV
-pr-duration --org my-org --period 1mo --export csv --token ghp_your_token_here
+# Get PR stats for specific users
+pr-duration --org my-org --user johndoe,janedoe --period 1mo --token ghp_your_token_here
 
-# Get stats for specific repository and user
-pr-duration --org my-org --repo my-repo --user johndoe --period 3mo --token ghp_your_token_here
+# Get stats for all PRs in specific repository
+pr-duration --org my-org --repo my-repo --period 3mo --token ghp_your_token_here
 ```
 
 ## Requirements
