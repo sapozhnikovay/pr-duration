@@ -1,0 +1,35 @@
+# Source control
+.git*
+.github/
+
+# Development files
+test/
+tests/
+*.test.js
+*.spec.js
+.eslintrc*
+.prettier*
+.editorconfig
+.vscode/
+.idea/
+
+# Documentation
+docs/
+CONTRIBUTING.md
+CHANGELOG.md
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables
+.env*
+
+# OS generated files
+.DS_Store
+Thumbs.db 

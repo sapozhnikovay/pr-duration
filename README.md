@@ -1,15 +1,19 @@
-# PR Stats Console App
+# pr-duration
 
-This script calculates the average duration (in hours) between the time a pull request becomes “ready for review” and the time it is merged. It uses GitHub’s API to fetch pull requests, filtered by organization, optional repository, a specified time period, and optionally by a specific GitHub username.
+Calculate and analyze Pull Request durations and metrics using GitHub's API. This tool helps you track and analyze the time between when pull requests become ready for review and when they are merged.
 
-By default, if no user is specified, it shows stats for the authenticated user's PRs.
+## Installation
+
+```bash
+npm install -g pr-duration
+```
 
 ## Usage
 
-```sh
-node index.js --org my-org --period 1w --token YOUR_GITHUB_TOKEN
-node index.js --org my-org --repo my-repo --period 3mo --user otherUser --token YOUR_GITHUB_TOKEN
-node index.js --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB_TOKEN
+```bash
+pr-duration --org my-org --period 1w --token YOUR_GITHUB_TOKEN
+pr-duration --org my-org --repo my-repo --period 3mo --user otherUser --token YOUR_GITHUB_TOKEN
+pr-duration --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB_TOKEN
 ```
 
 ## Options
@@ -23,31 +27,39 @@ node index.js --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITH
 - `-t, --token <token>`: GitHub personal access token (required)
 - `--export <format>`: Export data in the specified format (json or csv)
 
+## Examples
+
+```bash
+# Get PR stats for the last week
+pr-duration --org my-org --period 1w --token ghp_your_token_here
+
+# Export PR stats to CSV
+pr-duration --org my-org --period 1mo --export csv --token ghp_your_token_here
+
+# Get stats for specific repository and user
+pr-duration --org my-org --repo my-repo --user johndoe --period 3mo --token ghp_your_token_here
+```
+
+## Requirements
+
+- Node.js >= 18.0.0
+- GitHub Personal Access Token with repo scope
+
+## Features
+
+- Calculate average PR review duration
+- Filter by organization, repository, and user
+- Flexible time period selection
+- Export data in JSON or CSV format
+- Detailed PR timeline analysis
+
 ## Libraries Used
 
-- [@octokit/rest](https://github.com/octokit/rest.js): GitHub REST API client for Node.js
-- [commander](https://github.com/tj/commander.js): The complete solution for node.js command-line interfaces
-- [parse-duration](https://github.com/jkroso/parse-duration): Parse duration strings
-- [@json2csv/plainjs](https://github.com/zemirco/json2csv): Convert JSON to CSV
+- [@octokit/rest](https://github.com/octokit/rest.js): GitHub REST API client
+- [commander](https://github.com/tj/commander.js): Command-line interface
+- [parse-duration](https://github.com/jkroso/parse-duration): Time period parsing
+- [@json2csv/plainjs](https://github.com/zemirco/json2csv): CSV export
 
-## How to Run
+## License
 
-1. Clone the repository:
-
-   ```sh
-   git clone https://github.com/sapozhnikovay/pr-stats.git
-   cd pr-stats
-   ```
-
-2. Install dependencies:
-
-   ```sh
-   npm install
-   ```
-
-3. Run the script with the desired options:
-   ```sh
-   node index.js --org my-org --period 1w --token YOUR_GITHUB_TOKEN
-   ```
-
-Make sure to replace `YOUR_GITHUB_TOKEN` with your actual GitHub personal access token.
+MIT © Aleksei Sapozhnikov

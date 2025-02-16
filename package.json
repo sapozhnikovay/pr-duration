@@ -1,30 +1,39 @@
 {
-  "name": "pr-stats-app",
+  "name": "pr-duration",
   "version": "1.0.0",
-  "description": "A Node.js console application to compute average pull request merge durations for GitHub repositories.",
+  "description": "Calculate and analyze Pull Request durations and metrics",
   "main": "index.js",
   "type": "module",
   "bin": {
-    "pr-stats": "./index.js"
+    "pr-duration": "./index.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@json2csv/plainjs": "^7.0.3",
+    "@octokit/rest": "^20.0.2",
+    "commander": "^11.1.0",
+    "parse-duration": "^1.1.0"
   },
   "keywords": [
-    "github",
     "pull-request",
-    "stats",
-    "cli"
+    "github",
+    "metrics",
+    "analytics",
+    "duration"
   ],
   "author": "Aleksei Sapozhnikov",
   "license": "MIT",
-  "dependencies": {
-    "@json2csv/plainjs": "7.0.6",
-    "@octokit/rest": "18.0.0",
-    "commander": "10.0.0",
-    "parse-duration": "2.1.2"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sapozhnikovay/pr-duration.git"
   },
+  "bugs": {
+    "url": "https://github.com/sapozhnikovay/pr-duration/issues"
+  },
+  "homepage": "https://github.com/sapozhnikovay/pr-duration#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=18.0.0"
   }
 }
