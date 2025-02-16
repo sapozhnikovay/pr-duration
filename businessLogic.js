@@ -8,7 +8,12 @@ const octokit = new Octokit();
  * Get the authenticated user’s login name.
  */
 export async function getAuthenticatedUser(token) {
-  const { data } = await octokit.users.getAuthenticated({ auth: token });
+  const { data } = await octokit.users.getAuthenticated({
+    auth: token,
+    headers: {
+      Authorization: `token ${token}`,
+    },
+  });
   return data.login;
 }
 
