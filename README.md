@@ -27,6 +27,25 @@ pr-duration --org my-org --start 2022-01-01 --end 2022-01-31 --token YOUR_GITHUB
 - `-t, --token <token>`: GitHub personal access token (required)
 - `--export <format>`: Export data in the specified format (json or csv)
 
+## Authentication
+
+You can provide your GitHub token in two ways:
+
+1. Via command line option:
+
+```bash
+pr-duration --org my-org --period 1w --token ghp_your_token_here
+```
+
+2. Via environment variable:
+
+```bash
+export GITHUB_TOKEN=ghp_your_token_here
+pr-duration --org my-org --period 1w
+```
+
+The command line option takes precedence over the environment variable if both are provided.
+
 ## Examples
 
 ```bash

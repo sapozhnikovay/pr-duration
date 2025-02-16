@@ -3,8 +3,8 @@
  * PR Stats Console App
  *
  * This script calculates the average duration (in hours) between the time
- * a pull request becomes “ready for review” and the time it is merged.
- * It uses GitHub’s API to fetch pull requests, filtered by organization,
+ * a pull request becomes "ready for review" and the time it is merged.
+ * It uses GitHub's API to fetch pull requests, filtered by organization,
  * optional repository, a specified time period, and optionally by a specific GitHub username.
  *
  * By default, if no user is specified, it shows stats for the authenticated user's PRs.
@@ -34,7 +34,7 @@ program
   .option('--start <date>', 'Start date (YYYY-MM-DD)')
   .option('--end <date>', 'End date (YYYY-MM-DD)')
   .option('-u, --user <username>', 'Filter PRs by GitHub username (defaults to the authenticated user)')
-  .requiredOption('-t, --token <token>', 'GitHub personal access token')
+  .option('-t, --token <token>', 'GitHub personal access token (can also be set via GITHUB_TOKEN env variable)')
   .option('--export <format>', 'Export data in the specified format (json or csv)')
   .parse(process.argv);
 
@@ -44,7 +44,14 @@ const repo = options.repo;
 const periodStr = options.period;
 const startDateStr = options.start;
 const endDateStr = options.end;
-const token = options.token;
+
+// Get token from command line or environment variable
+const token = options.token || process.env.GITHUB_TOKEN;
+
+if (!token) {
+  logger.error('GitHub token is required. Provide it via --token option or GITHUB_TOKEN environment variable');
+  process.exit(1);
+}
 
 if (!periodStr && !startDateStr && !endDateStr) {
   logger.error('Either --period or --start option or --start and --end options are required.');
@@ -68,7 +75,7 @@ if (options.export && !['json', 'csv'].includes(options.export)) {
 
 /**
  * Main function: Get the specified user's PRs, compute each duration
- * (in hours) from “ready” until merged, and output the average duration.
+ * (in hours) from "ready" until merged, and output the average duration.
  */
 async function main() {
   try {
