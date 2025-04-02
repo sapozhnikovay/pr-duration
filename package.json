@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "bin": {
-    "pr-duration": "./index.js"
+    "pr-duration": "index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
