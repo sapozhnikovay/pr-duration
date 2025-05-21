@@ -74,7 +74,7 @@ export async function fetchPullRequests(usernames, org, repo, since, until, toke
   const untilStr = until ? until.toISOString().split('T')[0] : '';
   let query = `type:pr is:merged merged:>=${sinceStr}`;
   if (untilStr) {
-    query += ` merged:${sinceStr}..${untilStr}`;
+    query = `type:pr is:merged merged:${sinceStr}..${untilStr}`;
   }
 
   // Add organization/repo filter
